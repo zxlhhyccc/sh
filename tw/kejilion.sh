@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="4.0.1"
+sh_v="4.0.2"
 
 
 gl_hui='\e[37m'
@@ -878,6 +878,14 @@ close_port() {
 		fi
 	done
 
+	# 刪除已存在的規則（如果有）
+	iptables -D INPUT -i lo -j ACCEPT 2>/dev/null
+	iptables -D FORWARD -i lo -j ACCEPT 2>/dev/null
+
+	# 插入新規則到第一條
+	iptables -I INPUT 1 -i lo -j ACCEPT
+	iptables -I FORWARD 1 -i lo -j ACCEPT
+
 	save_iptables_rules
 	send_stats "已關閉端口"
 }
@@ -1481,6 +1489,7 @@ certs_status() {
 		echo -e "3. 網絡配置問題 ➠ 如使用Cloudflare Warp等虛擬網絡請暫時關閉"
 		echo -e "4. 防火牆限制 ➠ 檢查80/443端口是否開放，確保驗證可訪問"
 		echo -e "5. 申請次數超限 ➠ Let's Encrypt有每週限額(5次/域名/週)"
+		echo -e "6. 國內備案限制 ➠ 中國大陸環境請確認域名是否備案"
 		break_end
 		clear
 		echo "請再次嘗試部署$webname"
@@ -1640,12 +1649,7 @@ cf_purge_cache() {
 web_cache() {
   send_stats "清理站點緩存"
   cf_purge_cache
-  docker exec php php -r 'opcache_reset();'
-  docker exec php74 php -r 'opcache_reset();'
-  docker exec nginx nginx -s stop
-  docker exec nginx rm -rf /var/cache/nginx/*
-  docker exec nginx nginx
-  docker restart redis
+  cd /home/web && docker compose restart
   restart_redis
 }
 
@@ -3444,7 +3448,7 @@ ldnmp_web_status() {
 
 
 check_panel_app() {
-if $lujing ; then
+if $lujing > /dev/null 2>&1; then
 	check_panel="${gl_lv}已安装${gl_bai}"
 else
 	check_panel=""
@@ -8390,6 +8394,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}73.  ${gl_bai}LibreTV私有影視${gl_kjlan}74.  ${gl_bai}MoonTV私有影視"
 	  echo -e "${gl_kjlan}75.  ${gl_bai}Melody音樂精靈${gl_kjlan}76.  ${gl_bai}在線DOS老遊戲"
 	  echo -e "${gl_kjlan}77.  ${gl_bai}迅雷離線下載工具${gl_kjlan}78.  ${gl_bai}PandaWiki智能文檔管理系統"
+	  echo -e "${gl_kjlan}79.  ${gl_bai}Beszel服務器監控"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜單"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -8446,13 +8451,13 @@ linux_panel() {
 			  ;;
 		  3)
 
-			local lujing="command -v 1pctl > /dev/null 2>&1"
+			local lujing="command -v 1pctl"
 			local panelname="1Panel"
 			local panelurl="https://1panel.cn/"
 
 			panel_app_install() {
 				install bash
-				curl -sSL https://resource.fit2cloud.com/1panel/package/quick_start.sh -o quick_start.sh && bash quick_start.sh
+				bash -c "$(curl -sSL https://resource.fit2cloud.com/1panel/package/v2/quick_start.sh)"
 			}
 
 			panel_app_manage() {
@@ -10522,6 +10527,33 @@ linux_panel() {
 
 
 
+		  79)
+
+			local docker_name="beszel"
+			local docker_img="henrygd/beszel"
+			local docker_port=8079
+
+			docker_rum() {
+
+				mkdir -p /home/docker/beszel && \
+				docker run -d \
+				  --name beszel \
+				  --restart=unless-stopped \
+				  -v /home/docker/beszel:/beszel_data \
+				  -p ${docker_port}:8090 \
+				  henrygd/beszel
+
+			}
+
+			local docker_describe="Beszel轻量易用的服务器监控"
+			local docker_url="官网介绍: https://beszel.dev/zh/"
+			local docker_use=""
+			local docker_passwd=""
+			local app_size="1"
+			docker_app
+
+			  ;;
+
 
 		  0)
 			  kejilion
@@ -12487,7 +12519,7 @@ echo -e "${gl_kjlan}p.   ${gl_bai}幻獸帕魯開服腳本"
 echo -e "${gl_kjlan}------------------------${gl_bai}"
 echo -e "${gl_kjlan}00.  ${gl_bai}腳本更新"
 echo -e "${gl_kjlan}------------------------${gl_bai}"
-echo -e "${gl_kjlan}0.   ${gl_bai}退出脚本"
+echo -e "${gl_kjlan}0.   ${gl_bai}退出腳本"
 echo -e "${gl_kjlan}------------------------${gl_bai}"
 read -e -p "請輸入你的選擇:" choice
 

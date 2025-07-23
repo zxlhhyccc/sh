@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="4.0.1"
+sh_v="4.0.2"
 
 
 gl_hui='\e[37m'
@@ -878,6 +878,14 @@ close_port() {
 		fi
 	done
 
+	# Delete existing rules (if any)
+	iptables -D INPUT -i lo -j ACCEPT 2>/dev/null
+	iptables -D FORWARD -i lo -j ACCEPT 2>/dev/null
+
+	# Insert new rules to first
+	iptables -I INPUT 1 -i lo -j ACCEPT
+	iptables -I FORWARD 1 -i lo -j ACCEPT
+
 	save_iptables_rules
 	send_stats "Port closed"
 }
@@ -1133,7 +1141,7 @@ iptables_panel() {
 
 			  5)
 				  # IP whitelist
-				  read -e -p "Please enter the IP or IP segment to release:" o_ip
+				  read -e -p "Please enter the IP or IP segment to be released:" o_ip
 				  allow_ip $o_ip
 				  ;;
 			  6)
@@ -1481,6 +1489,7 @@ certs_status() {
 		echo -e "3. Network configuration issues ➠ If you use Cloudflare Warp and other virtual networks, please temporarily shut down"
 		echo -e "4. Firewall restrictions ➠ Check whether port 80/443 is open to ensure verification is accessible"
 		echo -e "5. The number of applications exceeds the limit ➠ Let's Encrypt has a weekly limit (5 times/domain name/week)"
+		echo -e "6. Domestic registration restrictions ➠ Please confirm whether the domain name is registered in mainland China"
 		break_end
 		clear
 		echo "Please try deploying again$webname"
@@ -1640,12 +1649,7 @@ cf_purge_cache() {
 web_cache() {
   send_stats "Clean up site cache"
   cf_purge_cache
-  docker exec php php -r 'opcache_reset();'
-  docker exec php74 php -r 'opcache_reset();'
-  docker exec nginx nginx -s stop
-  docker exec nginx rm -rf /var/cache/nginx/*
-  docker exec nginx nginx
-  docker restart redis
+  cd /home/web && docker compose restart
   restart_redis
 }
 
@@ -1690,7 +1694,7 @@ nginx_waf() {
 		wget -O /home/web/nginx.conf "${gh_proxy}raw.githubusercontent.com/kejilion/nginx/main/nginx10.conf"
 	fi
 
-	# Decide to turn on or off WAF according to the mode parameter
+	# Decide to turn on or off WAF according to mode parameters
 	if [ "$mode" == "on" ]; then
 		# Turn on WAF: Remove comments
 		sed -i 's|# load_module /etc/nginx/modules/ngx_http_modsecurity_module.so;|load_module /etc/nginx/modules/ngx_http_modsecurity_module.so;|' /home/web/nginx.conf > /dev/null 2>&1
@@ -2069,7 +2073,7 @@ web_security() {
 
 				  22)
 					  send_stats "High load on 5 seconds shield"
-					  echo -e "${gl_huang}The website automatically detects every 5 minutes. When high load is detected, the shield will be automatically turned on, and low load will be automatically turned off for 5 seconds.${gl_bai}"
+					  echo -e "${gl_huang}The website automatically detects every 5 minutes. When it reaches the detection of a high load, the shield will be automatically turned on, and the low load will be automatically turned off for 5 seconds.${gl_bai}"
 					  echo "--------------"
 					  echo "Get CF parameters:"
 					  echo -e "Go to the upper right corner of the cf background, select the API token on the left, and obtain it${gl_huang}Global API Key${gl_bai}"
@@ -3400,7 +3404,7 @@ ldnmp_web_status() {
 				break_end
 				;;
 			6)
-				send_stats "查看错误日志"
+				send_stats "View error log"
 				tail -n 200 /home/web/log/nginx/error.log
 				break_end
 				;;
@@ -3444,7 +3448,7 @@ ldnmp_web_status() {
 
 
 check_panel_app() {
-if $lujing ; then
+if $lujing > /dev/null 2>&1; then
 	check_panel="${gl_lv}已安装${gl_bai}"
 else
 	check_panel=""
@@ -4407,7 +4411,7 @@ sed -i 's/^\s*#\?\s*PermitRootLogin.*/PermitRootLogin yes/g' /etc/ssh/sshd_confi
 sed -i 's/^\s*#\?\s*PasswordAuthentication.*/PasswordAuthentication yes/g' /etc/ssh/sshd_config;
 rm -rf /etc/ssh/sshd_config.d/* /etc/ssh/ssh_config.d/*
 restart_ssh
-echo -e "${gl_lv}ROOT login settings are complete!${gl_bai}"
+echo -e "${gl_lv}ROOT login is set up!${gl_bai}"
 
 }
 
@@ -6224,7 +6228,7 @@ run_task() {
 		echo "1. Is the network connection normal?"
 		echo "2. Is the remote host accessible?"
 		echo "3. Is the authentication information correct?"
-		echo "4. 本地和远程目录是否有正确的访问权限"
+		echo "4. Do local and remote directories have correct access permissions"
 	fi
 }
 
@@ -8359,7 +8363,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}21.  ${gl_bai}VScode web version${gl_kjlan}22.  ${gl_bai}UptimeKuma monitoring tool"
 	  echo -e "${gl_kjlan}23.  ${gl_bai}Memos web page memo${gl_kjlan}24.  ${gl_bai}Webtop Remote Desktop Web Edition${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}25.  ${gl_bai}Nextcloud network disk${gl_kjlan}26.  ${gl_bai}QD-Today timing task management framework"
-	  echo -e "${gl_kjlan}27.  ${gl_bai}Dockge Container Stack Management Panel${gl_kjlan}28.  ${gl_bai}LibreSpeed ​​Speed ​​Test Tool"
+	  echo -e "${gl_kjlan}27.  ${gl_bai}Dockge Container Stack Management Panel${gl_kjlan}28.  ${gl_bai}LibreSpeed Speed Test Tool"
 	  echo -e "${gl_kjlan}29.  ${gl_bai}searxng aggregation search site${gl_huang}★${gl_bai}                 ${gl_kjlan}30.  ${gl_bai}PhotoPrism Private Album System"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}31.  ${gl_bai}StirlingPDF tool collection${gl_kjlan}32.  ${gl_bai}drawio free online charting software${gl_huang}★${gl_bai}"
@@ -8390,6 +8394,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}73.  ${gl_bai}LibreTV Private Film and Television${gl_kjlan}74.  ${gl_bai}MoonTV Private Movie"
 	  echo -e "${gl_kjlan}75.  ${gl_bai}Melody Music Elf${gl_kjlan}76.  ${gl_bai}Online DOS old games"
 	  echo -e "${gl_kjlan}77.  ${gl_bai}Thunder offline download tool${gl_kjlan}78.  ${gl_bai}PandaWiki Intelligent Document Management System"
+	  echo -e "${gl_kjlan}79.  ${gl_bai}Beszel server monitoring"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}Return to main menu"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -8446,13 +8451,13 @@ linux_panel() {
 			  ;;
 		  3)
 
-			local lujing="command -v 1pctl > /dev/null 2>&1"
+			local lujing="command -v 1pctl"
 			local panelname="1Panel"
 			local panelurl="https://1panel.cn/"
 
 			panel_app_install() {
 				install bash
-				curl -sSL https://resource.fit2cloud.com/1panel/package/quick_start.sh -o quick_start.sh && bash quick_start.sh
+				bash -c "$(curl -sSL https://resource.fit2cloud.com/1panel/package/v2/quick_start.sh)"
 			}
 
 			panel_app_manage() {
@@ -10204,7 +10209,7 @@ linux_panel() {
 			}
 
 			local docker_describe="自动将你的公网 IP（IPv4/IPv6）实时更新到各大 DNS 服务商，实现动态域名解析。"
-			local docker_url="官网介绍: https://github.com/CorentinTh/it-tools"
+			local docker_url="官网介绍: https://github.com/jeessy2/ddns-go"
 			local docker_use=""
 			local docker_passwd=""
 			local app_size="1"
@@ -10521,6 +10526,33 @@ linux_panel() {
 			  ;;
 
 
+
+		  79)
+
+			local docker_name="beszel"
+			local docker_img="henrygd/beszel"
+			local docker_port=8079
+
+			docker_rum() {
+
+				mkdir -p /home/docker/beszel && \
+				docker run -d \
+				  --name beszel \
+				  --restart=unless-stopped \
+				  -v /home/docker/beszel:/beszel_data \
+				  -p ${docker_port}:8090 \
+				  henrygd/beszel
+
+			}
+
+			local docker_describe="Beszel轻量易用的服务器监控"
+			local docker_url="官网介绍: https://beszel.dev/zh/"
+			local docker_use=""
+			local docker_passwd=""
+			local app_size="1"
+			docker_app
+
+			  ;;
 
 
 		  0)
